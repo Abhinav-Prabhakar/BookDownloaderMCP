@@ -15,12 +15,12 @@ A powerful Node.js/TypeScript tool for searching and downloading ebooks from Lib
 
 ### For MCP Server (LLM Integration)
 ```bash
-npm install -g libgen-mcp-downloader
+npm install -g book-downloader-mcp
 ```
 
 ### For Programmatic Use
 ```bash
-npm install libgen-mcp-downloader
+npm install book-downloader-mcp
 ```
 
 **Requirements**: Node.js 16+ recommended
@@ -31,7 +31,7 @@ npm install libgen-mcp-downloader
 
 1. Install globally:
 ```bash
-npm install -g @rovodev/libgen-mcp-server
+npm install -g book-downloader-mcp
 ```
 
 2. Add to your `claude_desktop_config.json`:

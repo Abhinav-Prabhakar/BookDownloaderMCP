@@ -1,12 +1,12 @@
 {
-  "name": "libgen-mcp-downloader",
+  "name": "book-downloader-mcp",
   "version": "3.0.3",
   "description": "Programmatic LibGen+ search and downloader with an MCP server for LLM tool-calls.",
   "main": "./build/src/index.js",
   "bin": {
     "libgen-mcp": "./bin/mcp.js"
   },
-  "homepage": "https://github.com/obsfx/libgen-downloader",
+  "homepage": "https://github.com/CodeDreamer06/BookDownloaderMCP",
   "scripts": {
     "start:mcp": "ts-node src/mcp/server.ts",
     "build": "tsc -b",
@@ -33,7 +33,7 @@
   "license": "WTFPL",
   "repository": {
     "type": "git",
-    "url": "https://github.com/obsfx/libgen-downloader.git"
+    "url": "https://github.com/CodeDreamer06/BookDownloaderMCP.git"
   },
   "devDependencies": {
     "@types/content-disposition": "0.5.5",
