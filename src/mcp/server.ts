@@ -1,5 +1,6 @@
-import { Server } from "@modelcontextprotocol/sdk/server";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { version as pkgVersion } from "../../package.json";
 import {
@@ -19,77 +20,162 @@ async function main() {
     { capabilities: { tools: {} } }
   );
 
-  server.tool({
-    name: "libgen.ensureMirror",
-    description: "Ensures a working LibGen+ mirror is selected and returns it.",
-    inputSchema: z.object({}),
-    handler: async () => {
-      const { mirror, config } = await ensureMirrorReady();
-      return { content: [{ type: "json", value: { mirror, config } }] };
-    },
+  // Handle list_tools request
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: [
+        {
+          name: "libgen.ensureMirror",
+          description: "Ensures a working LibGen+ mirror is selected and returns it.",
+          inputSchema: {
+            type: "object",
+            properties: {},
+            required: []
+          }
+        },
+        {
+          name: "libgen.getActiveMirror",
+          description: "Returns the currently selected mirror if any.",
+          inputSchema: {
+            type: "object",
+            properties: {},
+            required: []
+          }
+        },
+        {
+          name: "libgen.setActiveMirror",
+          description: "Sets the active mirror by exact URL (must exist in configuration).",
+          inputSchema: {
+            type: "object",
+            properties: {
+              mirrorSrc: { type: "string" }
+            },
+            required: ["mirrorSrc"]
+          }
+        },
+        {
+          name: "libgen.search",
+          description: "Search books from LibGen+ mirrors.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", minLength: 3 },
+              page: { type: "number", minimum: 1 },
+              pageSize: { type: "number", minimum: 1, maximum: 100 }
+            },
+            required: ["query"]
+          }
+        },
+        {
+          name: "libgen.getDownloadUrl",
+          description: "Resolve a direct download URL for a given md5.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              md5: { type: "string", pattern: "^[a-fA-F0-9]{32}$" }
+            },
+            required: ["md5"]
+          }
+        },
+        {
+          name: "libgen.download",
+          description: "Download a file by md5 to the current working directory.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              md5: { type: "string", pattern: "^[a-fA-F0-9]{32}$" }
+            },
+            required: ["md5"]
+          }
+        },
+        {
+          name: "libgen.bulkDownload",
+          description: "Download multiple files by a list of md5 hashes.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              md5List: {
+                type: "array",
+                items: { type: "string", pattern: "^[a-fA-F0-9]{32}$" },
+                minItems: 1
+              }
+            },
+            required: ["md5List"]
+          }
+        }
+      ]
+    };
   });
 
-  server.tool({
-    name: "libgen.getActiveMirror",
-    description: "Returns the currently selected mirror if any.",
-    inputSchema: z.object({}),
-    handler: async () => {
-      return { content: [{ type: "json", value: { mirror: getActiveMirror() } }] };
-    },
-  });
+  // Handle call_tool requests
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
 
-  server.tool({
-    name: "libgen.setActiveMirror",
-    description: "Sets the active mirror by exact URL (must exist in configuration).",
-    inputSchema: z.object({ mirrorSrc: z.string() }),
-    handler: async ({ mirrorSrc }) => {
-      const mirror = await setActiveMirror(mirrorSrc);
-      return { content: [{ type: "json", value: { mirror } }] };
-    },
-  });
+    try {
+      switch (name) {
+        case "libgen.ensureMirror": {
+          const { mirror, config } = await ensureMirrorReady();
+          return {
+            content: [{ type: "text", text: JSON.stringify({ mirror, config }, null, 2) }]
+          };
+        }
 
-  server.tool({
-    name: "libgen.search",
-    description: "Search books from LibGen+ mirrors.",
-    inputSchema: z.object({
-      query: z.string().min(3),
-      page: z.number().int().positive().optional(),
-      pageSize: z.number().int().positive().max(100).optional(),
-    }),
-    handler: async ({ query, page, pageSize }) => {
-      const results = await searchBooks(query, page || 1, pageSize);
-      return { content: [{ type: "json", value: results }] };
-    },
-  });
+        case "libgen.getActiveMirror": {
+          const mirror = getActiveMirror();
+          return {
+            content: [{ type: "text", text: JSON.stringify({ mirror }, null, 2) }]
+          };
+        }
 
-  server.tool({
-    name: "libgen.getDownloadUrl",
-    description: "Resolve a direct download URL for a given md5.",
-    inputSchema: z.object({ md5: z.string().length(32) }),
-    handler: async ({ md5 }) => {
-      const url = await getDirectDownloadUrlByMd5(md5);
-      return { content: [{ type: "json", value: { md5, url } }] };
-    },
-  });
+        case "libgen.setActiveMirror": {
+          const { mirrorSrc } = args as { mirrorSrc: string };
+          const mirror = await setActiveMirror(mirrorSrc);
+          return {
+            content: [{ type: "text", text: JSON.stringify({ mirror }, null, 2) }]
+          };
+        }
 
-  server.tool({
-    name: "libgen.download",
-    description: "Download a file by md5 to the current working directory.",
-    inputSchema: z.object({ md5: z.string().length(32) }),
-    handler: async ({ md5 }) => {
-      const outcome = await downloadByMd5(md5);
-      return { content: [{ type: "json", value: outcome }] };
-    },
-  });
+        case "libgen.search": {
+          const { query, page, pageSize } = args as { query: string; page?: number; pageSize?: number };
+          const results = await searchBooks(query, page || 1, pageSize);
+          return {
+            content: [{ type: "text", text: JSON.stringify(results, null, 2) }]
+          };
+        }
 
-  server.tool({
-    name: "libgen.bulkDownload",
-    description: "Download multiple files by a list of md5 hashes.",
-    inputSchema: z.object({ md5List: z.array(z.string().length(32)).min(1) }),
-    handler: async ({ md5List }) => {
-      const outcomes = await downloadByMd5List(md5List);
-      return { content: [{ type: "json", value: outcomes }] };
-    },
+        case "libgen.getDownloadUrl": {
+          const { md5 } = args as { md5: string };
+          const url = await getDirectDownloadUrlByMd5(md5);
+          return {
+            content: [{ type: "text", text: JSON.stringify({ md5, url }, null, 2) }]
+          };
+        }
+
+        case "libgen.download": {
+          const { md5 } = args as { md5: string };
+          const outcome = await downloadByMd5(md5);
+          return {
+            content: [{ type: "text", text: JSON.stringify(outcome, null, 2) }]
+          };
+        }
+
+        case "libgen.bulkDownload": {
+          const { md5List } = args as { md5List: string[] };
+          const outcomes = await downloadByMd5List(md5List);
+          return {
+            content: [{ type: "text", text: JSON.stringify(outcomes, null, 2) }]
+          };
+        }
+
+        default:
+          throw new Error(`Unknown tool: ${name}`);
+      }
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true
+      };
+    }
   });
 
   await server.connect(new StdioServerTransport());

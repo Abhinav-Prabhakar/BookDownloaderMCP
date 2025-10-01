@@ -4,7 +4,7 @@ import { getAdapter } from "../api/adapters";
 import { Config, Mirror, fetchConfig, findMirror } from "../api/data/config";
 import { getDocument } from "../api/data/document";
 import { downloadFile } from "../api/data/download";
-import { attempt } from "../utils";
+import { attempt } from "../core/utils";
 import { SEARCH_PAGE_SIZE, httpAgent } from "../settings";
 import { Entry } from "../api/models/Entry";
 

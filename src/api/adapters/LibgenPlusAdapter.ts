@@ -1,7 +1,7 @@
 import { Entry } from "../models/Entry";
 import { Adapter } from "./Adapter";
 import { nanoid } from "nanoid";
-import { clearText } from "../../utils";
+import { clearText } from "../../core/utils";
 
 export class LibgenPlusAdapter implements Adapter {
   baseURL: string;

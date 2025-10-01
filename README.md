@@ -1,52 +1,41 @@
-# libgen-downloader + MCP Server
+# LibGen Downloader + MCP Server
 
-libgen-downloader is a Node.js/TypeScript tool for searching and downloading ebooks from LibGen mirrors. It originally provided an interactive TUI, and now also ships with a non-interactive MCP (Model Context Protocol) server so LLMs and automation can programmatically search, resolve download URLs, and download files.
+A powerful Node.js/TypeScript tool for searching and downloading ebooks from LibGen mirrors, featuring a Model Context Protocol (MCP) server for seamless LLM integration.
 
-Highlights
-- Interactive CLI/TUI for humans
-- New MCP server for LLM tool-calls (non-interactive)
-- Bulk downloading and direct download by MD5
-- Automatic mirror discovery for LibGen+ mirrors
-- Resilient network requests with retries
+## 🚀 Features
 
-Important Update
-After the original libgen mirrors were blocked (see status at https://open-slum.org/), libgen-downloader now uses libgen+ mirrors as its primary source. Live mirror configuration is fetched from the configuration branch: https://github.com/obsfx/libgen-downloader/blob/configuration/config.v3.json
+- **MCP Server Integration**: Enable LLMs (like Claude) to search and download books via tool calls
+- **Programmatic API**: Full Node.js API for automated workflows
+- **Bulk Downloads**: Download multiple books simultaneously by MD5
+- **Smart Mirror Discovery**: Automatic detection and failover for LibGen+ mirrors
+- **Resilient Operations**: Built-in retries and error handling for network requests
+- **TypeScript Support**: Full type definitions included
 
-Installation
-- Global install: npm i -g libgen-downloader
-- Standalone executables: https://github.com/obsfx/libgen-cli-downloader/releases
-- Node.js requirement: Node 16+ recommended
+## 📦 Installation
 
-Usage (Interactive CLI)
-- Start TUI: libgen-downloader
-- Search from CLI: libgen-downloader -s "The Art of War"
-- Bulk download by MD5 list file: libgen-downloader -b ./MD5_LIST.txt
-- Print direct URL by MD5: libgen-downloader -u 1234567890abcdef1234567890abcdef
-- Download by MD5: libgen-downloader -d 1234567890abcdef1234567890abcdef
+### For MCP Server (LLM Integration)
+```bash
+npm install -g libgen-mcp-downloader
+```
 
-Features (CLI)
-- Interactive UI with React + Ink
-- Non-blocking direct downloading
-- Bulk downloading
-- Keyboard shortcuts (e.g., J/K for navigation, Tab to queue, D to download)
-- Automatic configuration fetch + dynamic mirror selection
-- Retries on failed network requests
+### For Programmatic Use
+```bash
+npm install libgen-mcp-downloader
+```
 
-New: MCP Server (for LLMs and automation)
-libgen-downloader now includes an MCP server exposing LibGen operations over stdio for LLM tool calls. This allows non-interactive environments (e.g., Claude with MCP) to search and download without a TUI.
+**Requirements**: Node.js 16+ recommended
 
-Binary
-- libgen-mcp (installed globally as part of this package)
+## 🤖 MCP Server Setup
 
-Run locally (from a clone)
-- npm run start:mcp
+### Claude Desktop Integration
 
-Run compiled (after build)
-- npm run build:mcp
-- libgen-mcp
+1. Install globally:
+```bash
+npm install -g @rovodev/libgen-mcp-server
+```
 
-Claude Desktop (example)
-Add to your claude_desktop_config.json:
+2. Add to your `claude_desktop_config.json`:
+```json
 {
   "mcpServers": {
     "libgen": {
@@ -54,81 +43,227 @@ Add to your claude_desktop_config.json:
     }
   }
 }
-Then restart Claude Desktop. The tools below will be available to the assistant.
+```
 
-MCP Tools
-1) libgen.ensureMirror
-- Ensures configuration is fetched and a working mirror is selected
-- Input: {}
-- Output: { mirror, config }
+3. Restart Claude Desktop
 
-2) libgen.getActiveMirror
-- Returns the currently selected mirror (if any)
-- Input: {}
-- Output: { mirror }
+The assistant will now have access to LibGen search and download capabilities!
 
-3) libgen.setActiveMirror
-- Manually select an active mirror by its src from config
-- Input: { mirrorSrc: string }
-- Output: { mirror }
+### Other MCP Clients
 
-4) libgen.search
-- Search books on LibGen+
-- Input: { query: string (min 3), page?: number = 1, pageSize?: number }
-- Output: Array of entries with fields: { id, authors, title, publisher, year, pages, language, size, extension, mirror, md5?, resolvedMirrorUrl? }
-  - md5 is extracted from resolvedMirrorUrl when available
+Run the MCP server directly:
+```bash
+libgen-mcp
+```
 
-5) libgen.getDownloadUrl
-- Resolve a direct download URL for a given MD5
-- Input: { md5: string (32 hex) }
-- Output: { md5, url }
+Or from source:
+```bash
+npm run start:mcp
+```
 
-6) libgen.download
-- Download a file by MD5 to the current working directory
-- Input: { md5: string (32 hex) }
-- Output: { md5, status: "ok" | "error", path?, filename?, total?, error? }
+## 💻 Programmatic Usage
 
-7) libgen.bulkDownload
-- Download multiple files by a list of MD5 hashes
-- Input: { md5List: string[] (each 32 hex) }
-- Output: Array of outcomes like libgen.download
+### Basic Example
 
-Notes and Behavior
-- Downloads use Content-Disposition headers to derive filenames and write to the current working directory
-- Network requests are retried with small delays
-- Mirrors are auto-discovered from the remote configuration; you can override using libgen.setActiveMirror
-- Parsing and behavior is adapted for libgen+ HTML structure
+```javascript
+const libgen = require('@rovodev/libgen-mcp-server');
 
-Programmatic Examples (LLM-style)
-- Search: Call libgen.ensureMirror, then libgen.search with { query: "deep learning", page: 1 }
-- Get direct URL: Call libgen.getDownloadUrl with { md5 }
-- Download: Call libgen.download with { md5 }
-- Bulk download: Call libgen.bulkDownload with a list of md5 strings
+async function searchAndDownload() {
+  // Initialize mirror connection
+  await libgen.ensureMirrorReady();
+  
+  // Search for books
+  const results = await libgen.searchBooks('The Art of War');
+  console.log(`Found ${results.length} results`);
+  
+  if (results.length > 0) {
+    const book = results[0];
+    console.log(`Downloading: ${book.title} by ${book.authors}`);
+    
+    // Get direct download URL
+    const url = await libgen.getDirectDownloadUrlByMd5(book.md5);
+    console.log(`Download URL: ${url}`);
+    
+    // Download the file
+    const outcome = await libgen.downloadByMd5(book.md5);
+    if (outcome.status === 'ok') {
+      console.log(`Downloaded to: ${outcome.path}`);
+    }
+  }
+}
 
-Development
-- Build: npm run build
-- Run TUI dev: npm start
-- Run MCP dev: npm run start:mcp
-- Lint: npm run lint
+searchAndDownload();
+```
 
-Architecture Overview
-- TUI (React/Ink/Zustand): interactive features, pagination, queues
-- Core data layer: HTML parsing (jsdom), fetch, mirror discovery, resilient attempts
-- MCP server: thin wrapper exposing search and download capabilities using the same core logic
+### TypeScript Example
 
-Changelog (selected)
-- v3.0.0
-  - libgen+ mirrors as primary source
-  - Dropped search-by filtering options to maintain compatibility with libgen+
-  - Dropped alternative downloads feature for now
-- v2.x
-  - Alternative downloads, progress indicators, cache, -s CLI search, shortcuts
-- v1.x
-  - Rewrote UI with React/Ink/Zustand, bulk download, improved error handling, retries
+```typescript
+import * as libgen from '@rovodev/libgen-mcp-server';
 
-License
-- WTFPL
+async function bulkDownload(searchQuery: string) {
+  await libgen.ensureMirrorReady();
+  
+  const results = await libgen.searchBooks(searchQuery, 1, 10);
+  const md5List = results
+    .filter(book => book.md5)
+    .map(book => book.md5!)
+    .slice(0, 3); // Download first 3 books
+  
+  const outcomes = await libgen.downloadByMd5List(md5List);
+  outcomes.forEach(outcome => {
+    if (outcome.status === 'ok') {
+      console.log(`✓ Downloaded: ${outcome.filename}`);
+    } else {
+      console.log(`✗ Failed: ${outcome.error}`);
+    }
+  });
+}
+```
 
-Disclaimer
-- This tool accesses third-party mirrors which may be blocked or unstable.
-- Use responsibly and comply with applicable laws in your jurisdiction.
+### API Reference
+
+- `ensureMirrorReady()`: Initialize mirror configuration
+- `searchBooks(query, page?, pageSize?)`: Search for books  
+- `getDirectDownloadUrlByMd5(md5)`: Get download URL for a book
+- `downloadByMd5(md5)`: Download a single book
+- `downloadByMd5List(md5Array)`: Bulk download multiple books
+
+## 🛠 MCP Tools Reference
+
+When connected via MCP, the following tools are available to LLMs:
+
+### Core Operations
+
+| Tool | Description | Input | Output |
+|------|-------------|-------|--------|
+| `libgen.ensureMirror` | Initialize and select working mirror | `{}` | `{ mirror, config }` |
+| `libgen.getActiveMirror` | Get currently selected mirror | `{}` | `{ mirror }` |
+| `libgen.setActiveMirror` | Manually set active mirror | `{ mirrorSrc: string }` | `{ mirror }` |
+
+### Search & Discovery
+
+| Tool | Description | Input | Output |
+|------|-------------|-------|--------|
+| `libgen.search` | Search books on LibGen+ | `{ query: string, page?: number, pageSize?: number }` | Array of book entries with metadata |
+
+**Search Result Fields**: `id`, `authors`, `title`, `publisher`, `year`, `pages`, `language`, `size`, `extension`, `mirror`, `md5`, `resolvedMirrorUrl`
+
+### Download Operations
+
+| Tool | Description | Input | Output |
+|------|-------------|-------|--------|
+| `libgen.getDownloadUrl` | Get direct download URL | `{ md5: string }` | `{ md5, url }` |
+| `libgen.download` | Download single file | `{ md5: string }` | `{ md5, status, path?, filename?, total?, error? }` |
+| `libgen.bulkDownload` | Download multiple files | `{ md5List: string[] }` | Array of download outcomes |
+
+### Example MCP Workflow
+
+```javascript
+// 1. Initialize
+await mcp.call("libgen.ensureMirror", {});
+
+// 2. Search
+const results = await mcp.call("libgen.search", { 
+  query: "machine learning", 
+  page: 1 
+});
+
+// 3. Download first result
+if (results.length > 0) {
+  const outcome = await mcp.call("libgen.download", { 
+    md5: results[0].md5 
+  });
+}
+```
+
+## ⚠️ Important Notes
+
+- **Mirror Status**: LibGen mirrors can be unstable. The tool automatically discovers working mirrors from the configuration
+- **File Locations**: Downloads are saved to the current working directory with original filenames
+- **Network Resilience**: Built-in retries handle temporary network issues
+- **LibGen+ Compatibility**: Optimized for LibGen+ mirror structure and parsing
+
+## 🔧 Development
+
+### Building the Project
+
+```bash
+npm run build          # Compile TypeScript
+npm run build:mcp      # Build and run MCP server
+npm run watch          # Watch mode for development
+```
+
+### Running Locally
+
+```bash
+npm run start:mcp      # Start MCP server in development
+npm run lint           # Run ESLint
+npm run format         # Format code with Prettier
+```
+
+### Testing
+
+```bash
+npm test               # Run all tests
+npm run test:ci        # Run tests in CI mode
+```
+
+**Optional Integration Tests**: Set environment variables for Groq API testing:
+- `GROQ_API_KEY`: Your Groq API key
+- `RUN_GROQ_TESTS=1`: Enable integration tests
+
+Create a `.env` file (gitignored) or use `.env.test` for testing. See `.env.example` for reference.
+
+## 🏗 Architecture
+
+- **Core Layer**: HTML parsing (jsdom), HTTP requests, mirror discovery, retry logic
+- **MCP Server**: Stdio-based server exposing LibGen operations as MCP tools
+- **Programmatic API**: Direct function exports for Node.js integration
+- **Mirror Management**: Dynamic configuration fetching and automatic failover
+
+## 📋 Changelog
+
+### v3.0.2 (Current)
+- ✅ Full test coverage with proper mocking
+- ✅ Updated MCP SDK compatibility
+- ✅ Enhanced error handling and retries
+- ✅ Improved documentation and examples
+
+### v3.0.0
+- 🔄 LibGen+ mirrors as primary source
+- ➖ Removed search filtering for LibGen+ compatibility
+- ➖ Temporarily removed alternative downloads
+
+### v2.x
+- ➕ Alternative downloads, progress indicators
+- ➕ CLI search capabilities and shortcuts
+- ➕ Caching system
+
+### v1.x
+- 🔄 Complete UI rewrite with React/Ink/Zustand
+- ➕ Bulk download functionality
+- ✅ Enhanced error handling and retry logic
+
+## 📄 License
+
+**WTFPL** - Do What The F*ck You Want To Public License
+
+## ⚖️ Legal Disclaimer
+
+This tool accesses third-party LibGen mirrors which may be:
+- Blocked or unstable in certain regions
+- Subject to local laws and regulations
+
+**Use responsibly and ensure compliance with applicable laws in your jurisdiction.**
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass: `npm test`
+5. Submit a pull request
+
+**Repository**: https://github.com/obsfx/libgen-downloader

@@ -5,7 +5,6 @@
     "target": "ES2016",
     "module": "CommonJS",
     "moduleResolution": "Node",
-    "jsx": "react",
     "outDir": "./build",
     "strict": true,
     "noImplicitAny": true,
@@ -13,7 +12,10 @@
     "strictFunctionTypes": true,
     "noImplicitThis": true,
     "noImplicitReturns": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2019", "DOM"],
+    "types": ["node", "jest"],
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts"]
