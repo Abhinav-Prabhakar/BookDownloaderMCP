@@ -1,187 +1,75 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
-import { version as pkgVersion } from "../../package.json";
-import {
-  ensureMirrorReady,
-  getActiveMirror,
-  getActiveConfig,
-  setActiveMirror,
-  searchBooks,
-  getDirectDownloadUrlByMd5,
-  downloadByMd5,
-  downloadByMd5List,
-} from "./libgen";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { loadConfig } from "../config";
+import { toErrorMessage } from "../core/errors";
+import { LibgenClient } from "../libgen";
+import type { LibgenConfig } from "../types";
+import { TOOLS, type ToolContext } from "./tools";
 
-async function main() {
-  const server = new Server(
-    { name: "libgen-downloader-mcp", version: pkgVersion },
-    { capabilities: { tools: {} } }
-  );
+export const SERVER_NAME = "book-downloader-mcp";
+export const VERSION = "4.0.0";
 
-  // Handle list_tools request
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        {
-          name: "libgen.ensureMirror",
-          description: "Ensures a working LibGen+ mirror is selected and returns it.",
-          inputSchema: {
-            type: "object",
-            properties: {},
-            required: []
-          }
-        },
-        {
-          name: "libgen.getActiveMirror",
-          description: "Returns the currently selected mirror if any.",
-          inputSchema: {
-            type: "object",
-            properties: {},
-            required: []
-          }
-        },
-        {
-          name: "libgen.setActiveMirror",
-          description: "Sets the active mirror by exact URL (must exist in configuration).",
-          inputSchema: {
-            type: "object",
-            properties: {
-              mirrorSrc: { type: "string" }
-            },
-            required: ["mirrorSrc"]
-          }
-        },
-        {
-          name: "libgen.search",
-          description: "Search books from LibGen+ mirrors.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              query: { type: "string", minLength: 3 },
-              page: { type: "number", minimum: 1 },
-              pageSize: { type: "number", minimum: 1, maximum: 100 }
-            },
-            required: ["query"]
-          }
-        },
-        {
-          name: "libgen.getDownloadUrl",
-          description: "Resolve a direct download URL for a given md5.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              md5: { type: "string", pattern: "^[a-fA-F0-9]{32}$" }
-            },
-            required: ["md5"]
-          }
-        },
-        {
-          name: "libgen.download",
-          description: "Download a file by md5 to the current working directory.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              md5: { type: "string", pattern: "^[a-fA-F0-9]{32}$" }
-            },
-            required: ["md5"]
-          }
-        },
-        {
-          name: "libgen.bulkDownload",
-          description: "Download multiple files by a list of md5 hashes.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              md5List: {
-                type: "array",
-                items: { type: "string", pattern: "^[a-fA-F0-9]{32}$" },
-                minItems: 1
-              }
-            },
-            required: ["md5List"]
-          }
-        }
-      ]
-    };
-  });
+const INSTRUCTIONS = `LibGen MCP searches Library Genesis and downloads files to the machine running the server.
 
-  // Handle call_tool requests
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
+Workflow:
+1. libgen_search with a title, author or ISBN.
+2. libgen_download with the md5 of a result (or libgen_get_download_url to inspect the link first).
+3. Use libgen_bulk_download for several files.
 
-    try {
-      switch (name) {
-        case "libgen.ensureMirror": {
-          const { mirror, config } = await ensureMirrorReady();
-          return {
-            content: [{ type: "text", text: JSON.stringify({ mirror, config }, null, 2) }]
-          };
-        }
+Notes:
+- Downloads land in LIBGEN_DOWNLOAD_DIR (default: the server's working directory). Pass downloadDir to override per call.
+- Files are verified against their LibGen md5; check the md5Verified field.
+- Mirrors rotate often. If a call fails, run libgen_status, then libgen_set_mirror with a working URL.
+- Only download material you are legally allowed to access.`;
 
-        case "libgen.getActiveMirror": {
-          const mirror = getActiveMirror();
-          return {
-            content: [{ type: "text", text: JSON.stringify({ mirror }, null, 2) }]
-          };
-        }
-
-        case "libgen.setActiveMirror": {
-          const { mirrorSrc } = args as { mirrorSrc: string };
-          const mirror = await setActiveMirror(mirrorSrc);
-          return {
-            content: [{ type: "text", text: JSON.stringify({ mirror }, null, 2) }]
-          };
-        }
-
-        case "libgen.search": {
-          const { query, page, pageSize } = args as { query: string; page?: number; pageSize?: number };
-          const results = await searchBooks(query, page || 1, pageSize);
-          return {
-            content: [{ type: "text", text: JSON.stringify(results, null, 2) }]
-          };
-        }
-
-        case "libgen.getDownloadUrl": {
-          const { md5 } = args as { md5: string };
-          const url = await getDirectDownloadUrlByMd5(md5);
-          return {
-            content: [{ type: "text", text: JSON.stringify({ md5, url }, null, 2) }]
-          };
-        }
-
-        case "libgen.download": {
-          const { md5 } = args as { md5: string };
-          const outcome = await downloadByMd5(md5);
-          return {
-            content: [{ type: "text", text: JSON.stringify(outcome, null, 2) }]
-          };
-        }
-
-        case "libgen.bulkDownload": {
-          const { md5List } = args as { md5List: string[] };
-          const outcomes = await downloadByMd5List(md5List);
-          return {
-            content: [{ type: "text", text: JSON.stringify(outcomes, null, 2) }]
-          };
-        }
-
-        default:
-          throw new Error(`Unknown tool: ${name}`);
-      }
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true
-      };
-    }
-  });
-
-  await server.connect(new StdioServerTransport());
+export interface CreateServerOptions {
+  config?: LibgenConfig;
+  client?: LibgenClient;
 }
 
-main().catch((err) => {
-  console.error("MCP server crashed", err);
-  process.exit(1);
-});
+function serialize(data: unknown): string {
+  if (typeof data === "string") return data;
+  if (data === undefined) return "null";
+  return JSON.stringify(data, null, 2);
+}
+
+/** Builds a transport-agnostic MCP server around a LibgenClient. */
+export function createServer(options: CreateServerOptions = {}): McpServer {
+  const config = options.config ?? loadConfig();
+  const client = options.client ?? new LibgenClient(config);
+  const ctx: ToolContext = { client };
+
+  const server = new McpServer(
+    { name: SERVER_NAME, version: VERSION, title: "LibGen MCP" },
+    { capabilities: { tools: {} }, instructions: INSTRUCTIONS }
+  );
+
+  for (const tool of TOOLS) {
+    server.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: {
+          readOnlyHint: tool.readOnly,
+          idempotentHint: tool.readOnly,
+          destructiveHint: false,
+          openWorldHint: true,
+        },
+      },
+      async (args) => {
+        try {
+          const data = await tool.handler(args as Record<string, unknown>, ctx);
+          return { content: [{ type: "text" as const, text: serialize(data) }] };
+        } catch (error) {
+          return {
+            content: [{ type: "text" as const, text: `Error: ${toErrorMessage(error)}` }],
+            isError: true,
+          };
+        }
+      }
+    );
+  }
+
+  return server;
+}

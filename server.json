@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.abhinav-prabhakar/book-downloader-mcp",
+  "title": "Book Downloader (LibGen)",
+  "description": "Search Library Genesis and download ebooks with mirror failover, MD5 verification and bounded concurrency.",
+  "repository": {
+    "url": "https://github.com/Abhinav-Prabhakar/BookDownloaderMCP",
+    "source": "github"
+  },
+  "version": "4.0.0",
+  "websiteUrl": "https://github.com/Abhinav-Prabhakar/BookDownloaderMCP",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "book-downloader-mcp",
+      "version": "4.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LIBGEN_DOWNLOAD_DIR",
+          "description": "Directory where downloaded books are saved. Defaults to the server's working directory.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "LIBGEN_MIRROR",
+          "description": "Pin a specific LibGen+ mirror instead of discovering one automatically.",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

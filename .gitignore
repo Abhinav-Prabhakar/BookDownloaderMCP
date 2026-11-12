@@ -1,24 +1,29 @@
-.DS_Store
-/node_modules
-/build
-/standalone-executables
-/legacy
+# Build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
 
-*.chm
-*.pdf
-*.djvu
-*.epub
-*.txt
+# Dependencies
+node_modules/
+
+# Downloads and packaging
 *.tgz
-
-ws.session
+*.pdf
+*.epub
+*.mobi
+*.azw3
+*.djvu
+*.chm
 
 # Local env
 .env
 .env.*
 !.env.example
-!.env.sample
 
-# Test coverage
-coverage
-
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+ws.session

@@ -1,97 +1,63 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (and other agents) working in this repository.
 
-## Project Overview
+## Project overview
 
-`libgen-downloader` is a command-line tool for searching and downloading ebooks from libgen. It's built with TypeScript, React, Ink (for terminal UI), and Zustand for state management. The application provides both interactive TUI and CLI modes.
+`book-downloader-mcp` is a Model Context Protocol server plus a small
+programmatic API for searching and downloading ebooks from LibGen+ mirrors. It
+is plain CommonJS TypeScript with no build-time framework, targeting Node 20+.
 
-## Common Commands
+The only runtime dependencies are `@modelcontextprotocol/sdk`, `jsdom` and `zod`.
 
-**Development:**
-- `npm start` - Run in development mode with ts-node
-- `npm run build` - Build TypeScript to JavaScript  
-- `npm run watch` - Build and watch for changes
-- `npm run lint` - Lint TypeScript/JavaScript files with ESLint + Prettier
-- `npm run lint:fix` - Auto-fix linting issues
-- `npm run format` - Format code with Prettier (100-char line width)
+## Commands
 
-**Production:**
-- `npm run build:complete` - Full build including standalone executables
-- `npm run pkg` - Create standalone executables for multiple platforms (Node.js 16)
-- `npm run rimraf` - Clean build and standalone-executables directories
+```bash
+npm install
+npm run build          # tsc -> dist/ (tsconfig.build.json)
+npm run typecheck      # tsc --noEmit over src + tests
+npm test               # vitest run (50 tests)
+npm run test:coverage  # coverage thresholds are enforced
+npm run lint
+npm run format
+node dist/cli.js --status
+```
 
-**Testing/Debug:**
-- `npm run inspect` - Run with Node.js debugger
-- `npm run react-dt` - Launch React DevTools for TUI debugging
-
-**CLI Usage:**
-- `libgen-downloader` - Interactive TUI mode
-- `libgen-downloader -s "query"` - Direct search with TUI
-- `libgen-downloader -b file.txt` - Bulk download from MD5 list
-- `libgen-downloader -u <MD5>` - Get download URL for MD5  
-- `libgen-downloader -d <MD5>` - Download single file by MD5
+Run `npm run lint && npm test && npm run build` before committing.
 
 ## Architecture
 
-The codebase follows a clean separation between CLI operations and the terminal user interface:
+```
+src/
+  cli.ts               parseArgs wrapper; stdio server or --status report
+  config.ts            env parsing (LIBGEN_* variables) with safe defaults
+  libgen.ts            LibgenClient — mirror lifecycle, search, download, bulk
+  core/http.ts         HttpClient: browser headers, timeouts, retries/backoff
+  core/files.ts        filename sanitisation, unique paths, streaming + md5
+  core/errors.ts       LibgenError with code/hint; toErrorMessage
+  api/config.ts        remote mirror config + findWorkingMirror
+  api/document.ts      jsdom helpers
+  api/adapters/        Adapter contract + LibgenPlusAdapter (HTML parsing)
+  mcp/tools.ts         the seven tool definitions (name, schema, handler)
+  mcp/server.ts        transport-agnostic McpServer factory
+tests/                 vitest suites + HTML fixtures
+```
 
-**Entry Point:** `src/index.ts` → `src/cli/operate.ts` - handles command-line arguments and determines execution mode
+Data flow: `tools` -> `LibgenClient` -> `Adapter` (URLs + parsing) ->
+`HttpClient` -> `libgen.li`-style mirror.
 
-**Core Structure:**
-- `/api/` - Data fetching and source adapters for libgen/Anna's Archive
-  - `Adapter.ts` - Abstract base for different search sources
-  - `/data/` - Data models and configuration
-  - `/models/` - TypeScript interfaces for entries, downloads, etc.
-- `/cli/` - Command-line interface logic and argument parsing
-- `/tui/` - Terminal user interface built with React + Ink
-  - `/components/` - Reusable UI components
-  - `/layouts/` - Different app screens (search, results, downloads, etc.)
-  - `/store/` - Zustand state management (app state, cache, queues)
-  - `/hooks/` - Custom React hooks for list controls and dimensions
+## Things to be careful about
 
-**State Management:** Uses Zustand with combined store architecture (`useBoundStore`):
-- `app.ts` - UI state, layouts, loading indicators, search state
-- `config.ts` - Mirror configuration and adapter management  
-- `download-queue.ts` - Download queue with progress tracking
-- `bulk-download-queue.ts` - Bulk download operations
-- `cache.ts` - Search result caching mechanism
-- `events.ts` - User interaction handlers (search, navigation, exit)
-
-**Key Features:**
-- Interactive TUI with keyboard navigation (vim-style J/K keys supported)
-- Non-blocking downloads with progress indicators
-- Bulk download functionality
-- Alternative download source support
-- Result caching mechanism
-- Dynamic mirror discovery
-
-## Core Patterns & Architecture
-
-**Adapter Pattern:** `/src/api/adapters/` implements pluggable source adapters:
-- `Adapter.ts` - Abstract base class defining interface
-- `LibgenPlusAdapter.ts` - Concrete LibGen+ implementation
-- Handles URL construction, HTML parsing, download link extraction
-- Supports dynamic mirror discovery and failover mechanisms
-
-**Layout System:** `/src/tui/layouts/` uses enum-based layout keys:
-- Search, Result List, Detail, Bulk Download, Download Queue management
-- Layout switching handled via `LAYOUT_KEY` enum and store actions
-
-**Error Handling:** Retry mechanism with 5 attempts, 2-second delays
-- Graceful mirror failover for availability issues
-- User-friendly error messages with retry options
-
-## Build System & Configuration
-
-**TypeScript:** ES2016 target, CommonJS modules, strict type checking
-**ESLint:** React + TypeScript rules with Prettier integration  
-**Prettier:** 100-char line width, double quotes, trailing commas
-**pkg:** Creates standalone executables for multiple platforms (Node.js 16)
-- Targets: Windows x64, macOS (ARM64/x64), Linux (ARM64/x64)
-
-## Current Development Context
-
-**Branch:** Currently on `v3/lg-plus-support` targeting LibGen+ support
-**Config:** Remote configuration fetched from GitHub for dynamic mirror management
-**Status:** LibGen mirrors have availability issues - see https://open-slum.org/ for status
+- **User-Agent matters.** LibGen+ mirrors serve a 641-byte nginx placeholder to
+  non-browser agents. Tests assert the browser headers in `core/http.ts`; do not
+  remove them.
+- **Probe with a real search.** A 200 on `/` proves nothing. Mirror health is
+  determined by whether the response contains `tablelibgen`.
+- **Do not trust the title cell.** It starts with the series name and an edition
+  badge before the real title. `LibgenPlusAdapter.extractTitle` skips those.
+- **Downloads are verified.** Streaming writes to `<file>.part`, enforces
+  `LIBGEN_MAX_DOWNLOAD_MB`, and compares the md5. Keep the cleanup path intact.
+- Tests never hit the network: they inject a `FetchLike` into `HttpClient`.
+  `tests/helpers.ts` has the fixtures and `recordingFetch`.
+- The npm package is `book-downloader-mcp`; the MCP registry name in
+  `package.json#mcpName` must stay in sync with `server.json`.

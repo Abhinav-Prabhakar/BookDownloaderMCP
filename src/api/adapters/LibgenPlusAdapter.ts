@@ -1,66 +1,64 @@
-import { Entry } from "../models/Entry";
+import { randomUUID } from "node:crypto";
+import type { Entry } from "../../types";
+import { clearText } from "../document";
 import { Adapter } from "./Adapter";
-import { nanoid } from "nanoid";
-import { clearText } from "../../core/utils";
 
-export class LibgenPlusAdapter implements Adapter {
-  baseURL: string;
+const MD5_IN_URL = /[?&]md5=([a-fA-F0-9]{32})/;
 
-  constructor(baseURL: string) {
-    this.baseURL = baseURL;
+function cellAt(row: Element, index: number): Element | undefined {
+  return row.children[index] ?? undefined;
+}
+
+function textAt(row: Element, index: number): string {
+  return clearText(cellAt(row, index)?.textContent ?? "");
+}
+
+function normaliseAuthors(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return trimmed
+    .split(";")
+    .flatMap((part) => (part.includes(",") && !trimmed.includes(";") ? part.split(",") : part))
+    .map((author) => author.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
+ * Parser for LibGen+ (`libgen.li`-style) mirrors.
+ *
+ * The results table has nine columns: title, authors, publisher, year,
+ * language, pages, size, extension, mirror. The title cell is messy: it starts
+ * with the series name, then a badge, then the actual title anchor.
+ */
+export class LibgenPlusAdapter extends Adapter {
+  constructor(readonly baseURL: string) {
+    super();
   }
 
-  isHiddenField(fieldName: string): boolean {
-    return !["id"].includes(fieldName);
-  }
-
-  parseEntries(document: Document, throwError?: (message: string) => void): Entry[] | undefined {
+  parseEntries(document: Document): Entry[] {
+    const rows = document.querySelectorAll<HTMLTableRowElement>("#tablelibgen > tbody > tr");
     const entries: Entry[] = [];
-    const containerTable = document.querySelector<HTMLTableElement>("#tablelibgen > tbody");
 
-    if (!containerTable) {
-      if (throwError) {
-        throwError("containerTable is undefined");
-      }
-      return [];
-    }
+    for (const row of Array.from(rows)) {
+      if (row.children.length < 8) continue;
 
-    // Get rid of table header by slicing it
-    const entryElements = containerTable.children;
+      const title = this.extractTitle(row);
+      if (!title) continue;
 
-    for (let i = 0; i < entryElements.length; i++) {
-      const element = entryElements[i];
+      const mirrorLink = cellAt(row, 8)?.querySelector("a")?.getAttribute("href") ?? "";
 
-      const id = nanoid();
-      const authors = clearText(element.children[1]?.textContent || "")
-        .split(";")
-        .map((author) => author.trim())
-        .join(", ");
-      const titleSectionContent = Array.from(element.children[0].children)
-        .filter((child) => child.nodeName !== "NOBR")
-        .map((e) => e.textContent?.trim())
-        .filter((e) => e)
-        .join(" / ");
-      const title = clearText(titleSectionContent || "");
-      const publisher = clearText(element.children[2]?.textContent || "");
-      const year = clearText(element.children[3]?.textContent || "");
-      const pages = clearText(element.children[5]?.textContent || "");
-      const language = clearText(element.children[4]?.textContent || "");
-      const size = clearText(element.children[6]?.textContent || "");
-      const extension = clearText(element.children[7]?.textContent || "");
-      const mirror =
-        element.children[8]?.getElementsByTagName("a")?.[0]?.getAttribute("href") || "";
       entries.push({
-        id,
-        authors,
+        id: randomUUID(),
+        authors: normaliseAuthors(textAt(row, 1)),
         title,
-        publisher,
-        year,
-        pages,
-        language,
-        size,
-        extension,
-        mirror,
+        publisher: textAt(row, 2),
+        year: textAt(row, 3),
+        language: textAt(row, 4),
+        pages: textAt(row, 5),
+        size: textAt(row, 6),
+        extension: textAt(row, 7),
+        mirror: mirrorLink,
       });
     }
 
@@ -68,15 +66,14 @@ export class LibgenPlusAdapter implements Adapter {
   }
 
   getPageURL(pathname: string): string {
-    const url = new URL(pathname, this.baseURL);
-    return url.toString();
+    return new URL(pathname, this.baseURL).toString();
   }
 
   getSearchURL(query: string, pageNumber: number, pageSize: number): string {
     const url = new URL("/index.php", this.baseURL);
     url.searchParams.set("req", query);
-    url.searchParams.set("page", pageNumber.toString());
-    url.searchParams.set("res", pageSize.toString());
+    url.searchParams.set("page", String(pageNumber));
+    url.searchParams.set("res", String(pageSize));
     return url.toString();
   }
 
@@ -86,45 +83,57 @@ export class LibgenPlusAdapter implements Adapter {
     return url.toString();
   }
 
-  getMainDownloadURLFromDocument(
-    document: Document,
-    throwError?: (message: string) => void
-  ): string | null {
-    const downloadLinkElement = document.querySelector(
-      "#main > tbody > tr:nth-child(1) > td:nth-child(2) > a"
-    );
+  getMainDownloadURLFromDocument(document: Document): string | null {
+    const direct =
+      document.querySelector<HTMLAnchorElement>("#main a[href*='get.php']") ??
+      document.querySelector<HTMLAnchorElement>(
+        "#main > tbody > tr:nth-child(1) > td:nth-child(2) > a"
+      );
 
-    if (!downloadLinkElement) {
-      if (throwError) {
-        throwError("downloadLinkElement is undefined");
-      }
-      return null;
-    }
-
-    const href = downloadLinkElement.getAttribute("href");
-    return this.getPageURL(href || "");
+    const href = direct?.getAttribute("href");
+    if (!href) return null;
+    return this.getPageURL(href);
   }
 
-  formatField(fieldName: string, value: string): string {
-    switch (fieldName) {
-      case "authors":
-        return value
-          .split(", ")
-          .map((author) => author.trim())
-          .join(", ");
-      case "title":
-        return value.trim();
-      case "publisher":
-      case "year":
-      case "pages":
-      case "language":
-      case "size":
-      case "extension":
-        return value.trim();
-      case "mirror":
-        return value.startsWith("http") ? value : this.getPageURL(value);
-      default:
-        return value;
+  /** Extracts the md5 embedded in an `ads.php` / `get.php` mirror link. */
+  static extractMd5(href: string): string | null {
+    if (!href) return null;
+    const match = MD5_IN_URL.exec(href);
+    if (match?.[1]) return match[1].toLowerCase();
+    try {
+      const value = new URL(href, "https://example.invalid").searchParams.get("md5");
+      return value && /^[a-fA-F0-9]{32}$/.test(value) ? value.toLowerCase() : null;
+    } catch {
+      return null;
     }
+  }
+
+  private extractTitle(row: Element): string {
+    const cell = cellAt(row, 0);
+    if (!cell) return "";
+
+    // The real title is the first direct anchor that is neither the series
+    // link nor the "#1" edition badge.
+    for (const child of Array.from(cell.children)) {
+      if (child.tagName !== "A") continue;
+      const href = child.getAttribute("href") ?? "";
+      if (href.startsWith("series.php")) continue;
+
+      const clone = child.cloneNode(true) as Element;
+      clone.querySelectorAll("i, font, nobr").forEach((node) => node.remove());
+      const text = clearText(clone.textContent ?? "");
+      if (text && !text.startsWith("#")) return text;
+    }
+
+    // Rows without an edition link keep the title in the <b> element.
+    const bold = cell.querySelector("b");
+    if (bold) {
+      const text = clearText(bold.textContent ?? "");
+      if (text) return text;
+    }
+
+    const clone = cell.cloneNode(true) as Element;
+    clone.querySelectorAll("nobr, font, script, style").forEach((node) => node.remove());
+    return clearText(clone.textContent ?? "");
   }
 }

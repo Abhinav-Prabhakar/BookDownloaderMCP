@@ -1,19 +1,11 @@
-import { Entry } from "../models/Entry";
+import type { Entry } from "../../types";
 
 export abstract class Adapter {
-  abstract baseURL: string;
+  abstract readonly baseURL: string;
 
-  abstract isHiddenField(fieldName: string): boolean;
-  abstract parseEntries(
-    document: Document,
-    throwError?: (message: string) => void
-  ): Entry[] | undefined;
+  abstract parseEntries(document: Document): Entry[];
   abstract getPageURL(pathname: string): string;
   abstract getSearchURL(query: string, pageNumber: number, pageSize: number): string;
   abstract getDetailPageURL(md5: string): string;
-  abstract getMainDownloadURLFromDocument(
-    document: Document,
-    throwError?: (message: string) => void
-  ): string | null;
-  abstract formatField(fieldName: string, value: string): string;
+  abstract getMainDownloadURLFromDocument(document: Document): string | null;
 }
