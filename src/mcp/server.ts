@@ -6,7 +6,7 @@ import type { LibgenConfig } from "../types";
 import { TOOLS, type ToolContext } from "./tools";
 
 export const SERVER_NAME = "book-downloader-mcp";
-export const VERSION = "4.0.0";
+export const VERSION = "4.0.1";
 
 const INSTRUCTIONS = `LibGen MCP searches Library Genesis and downloads files to the machine running the server.
 

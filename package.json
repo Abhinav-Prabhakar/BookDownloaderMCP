@@ -1,6 +1,6 @@
 {
   "name": "book-downloader-mcp",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Search Library Genesis (LibGen+) and download ebooks from any MCP client, with MD5 verification and automatic mirror failover.",
   "keywords": [
     "libgen",
@@ -28,7 +28,7 @@
   "contributors": [
     "Abhinav Prabhakar <85114885+Abhinav-Prabhakar@users.noreply.github.com>"
   ],
-  "mcpName": "io.github.abhinav-prabhakar/book-downloader-mcp",
+  "mcpName": "io.github.Abhinav-Prabhakar/book-downloader-mcp",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

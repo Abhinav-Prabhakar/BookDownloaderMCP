@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] — 2026-11-12
+
+- Point `mcpName` and the registry manifest at the correctly-cased GitHub
+  namespace (`io.github.Abhinav-Prabhakar/book-downloader-mcp`); the registry
+  treats the namespace as case-sensitive.
+- Shorten the registry description to fit the 100-character limit.
+
+No runtime changes.
+
 ## [4.0.0] — 2026-11-12
 
 A full rewrite of the server. The code is now organised into small, testable

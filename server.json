@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.abhinav-prabhakar/book-downloader-mcp",
+  "name": "io.github.Abhinav-Prabhakar/book-downloader-mcp",
   "title": "Book Downloader (LibGen)",
-  "description": "Search Library Genesis and download ebooks with mirror failover, MD5 verification and bounded concurrency.",
+  "description": "Search Library Genesis and download ebooks with MD5 verification and mirror failover.",
   "repository": {
     "url": "https://github.com/Abhinav-Prabhakar/BookDownloaderMCP",
     "source": "github"
   },
-  "version": "4.0.0",
+  "version": "4.0.1",
   "websiteUrl": "https://github.com/Abhinav-Prabhakar/BookDownloaderMCP",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "book-downloader-mcp",
-      "version": "4.0.0",
+      "version": "4.0.1",
       "transport": {
         "type": "stdio"
       },
